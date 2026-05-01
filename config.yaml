@@ -1,0 +1,45 @@
+# SSN v2 — pipeline configuration
+# Run: python run_ssn.py [--config config.yaml] [--steps all|cluster|search|plot_clusters|plot_ssn]
+
+# ── Input ─────────────────────────────────────────────────────────────────────
+input_fasta: "data/GH43_characterized.fa"   # for foldseek: path to PDB/mmCIF directory
+prefix: "test_run1"
+output_dir: "results"
+
+# ── Redundancy reduction ──────────────────────────────────────────────────────
+cluster:
+  tool: mmseqs          # mmseqs | foldseek
+  min_seq_id: 0.8
+  coverage: 0.8
+  cov_mode: 0           # 0 = bidirectional
+
+# ── All-vs-all search ─────────────────────────────────────────────────────────
+search:
+  tool: mmseqs          # mmseqs | foldseek
+  sensitivity: 7.5      # mmseqs -s flag; ignored for foldseek
+  evalue: 1e-5          # mmseqs only
+
+# ── Annotation ────────────────────────────────────────────────────────────────
+annotation:
+  meta_file: "data/GH43.tsv"               # TSV with annotation columns
+  id_col: "GenBank"                  # column in meta_file that matches sequence IDs
+  color_col:                    # one or more columns to colour nodes by
+    - EC
+    - Subf
+  id_mapping_file: null         # two-column TSV: genbank→uniprot (no header)
+  mmseqs_cluster_file: null     # auto-populated from cluster step when null
+
+# ── SSN plotting ──────────────────────────────────────────────────────────────
+ssn:
+  threshold:                    # one plot per threshold per color_col
+    - 0.3
+    - 0.5
+    - 0.7
+  node_size: 0.5
+  scale_node_size: false        # scale node area by mmseqs cluster member count
+
+# ── Cluster plotting ──────────────────────────────────────────────────────────
+clusters:
+  min_cluster_size: 2
+  color_col: EC
+  size_col: null                # numeric column for node size scaling

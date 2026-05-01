@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""
+SSN v2 — pipeline wrapper.
+Usage: python run_ssn.py [--config config.yaml] [--steps all|cluster|search|plot_clusters|plot_ssn]
+
+Steps:
+  cluster        mmseqs/foldseek easy-cluster  → cluster TSV + rep FASTA
+  search         mmseqs/foldseek all-vs-all    → m8 edge list
+  plot_clusters  R: cluster network + stats
+  plot_ssn       R: SSN network + stats
+  all            run all four steps in order (default)
+"""
+
+import argparse
+import json
+import logging
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+import yaml
+
+from scripts.cluster import easy_cluster, all_vs_all
+
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+def setup_logging(log_dir: Path, prefix: str) -> logging.Logger:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = log_dir / f"{prefix}_{stamp}.log"
+    fmt = "%(asctime)s  %(levelname)-8s  %(message)s"
+    logging.basicConfig(
+        level=logging.INFO,
+        format=fmt,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+    log = logging.getLogger("ssn")
+    log.info(f"Log: {log_path}")
+    return log
+
+
+def log_config(cfg: dict, log: logging.Logger) -> None:
+    log.info("=== Config ===")
+    for line in json.dumps(cfg, indent=2, default=str).splitlines():
+        log.info(line)
+    log.info("==============")
+
+
+# ── R script runner ───────────────────────────────────────────────────────────
+
+def run_r_script(script: Path, script_args: list, log: logging.Logger) -> None:
+    cmd = ["Rscript", str(script)] + [str(a) for a in script_args]
+    log.info("CMD  " + " ".join(cmd))
+    t0 = time.time()
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    elapsed = time.time() - t0
+    for line in result.stdout.splitlines():
+        log.info("R    " + line)
+    if result.returncode != 0:
+        for line in result.stderr.splitlines():
+            log.error("R    " + line)
+        raise RuntimeError(f"Rscript exited with code {result.returncode}")
+    log.info(f"     done in {elapsed:.1f}s")
+
+
+# ── Graph statistics (Python-side, optional) ──────────────────────────────────
+
+def compute_graph_stats(m8_path: Path, threshold: float, log: logging.Logger) -> dict:
+    try:
+        import igraph as ig
+    except ImportError:
+        log.warning("python-igraph not installed — skipping Python-side graph stats")
+        return {}
+
+    edges, weights = [], []
+    with open(m8_path) as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 3:
+                continue
+            q, s, pident = parts[0], parts[1], float(parts[2])
+            if q == s or pident == 100.0:
+                continue
+            if pident >= threshold:
+                edges.append((q, s))
+                weights.append(pident)
+
+    if not edges:
+        return {"threshold": threshold, "nodes": 0, "edges": 0}
+
+    g = ig.Graph.TupleList(edges, directed=False)
+    comps = g.clusters()
+    deg = g.degree()
+    return {
+        "threshold": threshold,
+        "nodes": g.vcount(),
+        "edges": g.ecount(),
+        "components": len(comps),
+        "largest_component": max(comps.sizes()),
+        "singletons": sum(1 for s in comps.sizes() if s == 1),
+        "avg_degree": round(sum(deg) / len(deg), 3) if deg else 0,
+        "avg_pident": round(sum(weights) / len(weights), 3),
+    }
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="SSN v2 pipeline")
+    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument(
+        "--steps",
+        nargs="+",
+        choices=["cluster", "search", "plot_clusters", "plot_ssn", "all"],
+        default=["all"],
+    )
+    args = parser.parse_args()
+
+    config_path = Path(args.config)
+    if not config_path.exists():
+        sys.exit(f"Config not found: {config_path}")
+    with open(config_path) as fh:
+        cfg = yaml.safe_load(fh)
+
+    run_all = "all" in args.steps
+    steps = set(args.steps)
+
+    input_fasta = Path(cfg["input_fasta"])
+    prefix = cfg["prefix"]
+    output_dir = Path(cfg["output_dir"])
+    scripts_dir = Path(__file__).parent / "scripts"
+
+    log = setup_logging(output_dir / "logs", prefix)
+    log_config(cfg, log)
+
+    if not input_fasta.exists():
+        log.error(f"Input not found: {input_fasta}")
+        sys.exit(1)
+
+    cluster_tsv: Path | None = None
+    rep_fasta: Path | None = None
+    m8_path: Path | None = None
+
+    # ── Step 1: Cluster ───────────────────────────────────────────────────────
+    if run_all or "cluster" in steps:
+        log.info("=== Step 1: Redundancy reduction ===")
+        c = cfg.get("cluster", {})
+        result = easy_cluster(
+            fasta=input_fasta,
+            output_dir=output_dir / "cluster",
+            prefix=prefix,
+            tool=c.get("tool", "mmseqs"),
+            min_seq_id=c.get("min_seq_id", 0.8),
+            coverage=c.get("coverage", 0.8),
+            cov_mode=c.get("cov_mode", 0),
+            log=log,
+        )
+        cluster_tsv = result["cluster_tsv"]
+        rep_fasta = result["rep_seq_fasta"]
+        log.info(f"cluster_tsv:   {cluster_tsv}")
+        log.info(f"rep_seq_fasta: {rep_fasta}")
+
+    # ── Step 2: All-vs-all search ─────────────────────────────────────────────
+    if run_all or "search" in steps:
+        if rep_fasta is None:
+            rep_fasta = output_dir / "cluster" / f"{prefix}_rep_seq.fasta"
+        log.info("=== Step 2: All-vs-all search ===")
+        s = cfg.get("search", {})
+        result = all_vs_all(
+            fasta=rep_fasta,
+            output_dir=output_dir / "search",
+            prefix=prefix,
+            tool=s.get("tool", "mmseqs"),
+            evalue=s.get("evalue", 1e-5),
+            sensitivity=s.get("sensitivity", 7.5),
+            log=log,
+        )
+        m8_path = result["m8"]
+        log.info(f"m8: {m8_path}")
+
+    # ── Step 3: Plot clusters ─────────────────────────────────────────────────
+    if run_all or "plot_clusters" in steps:
+        if cluster_tsv is None:
+            cluster_tsv = output_dir / "cluster" / f"{prefix}_cluster.tsv"
+        log.info("=== Step 3: Plot clusters ===")
+        cl = cfg.get("clusters", {})
+        ann = cfg.get("annotation", {})
+        (output_dir / "plots").mkdir(parents=True, exist_ok=True)
+        plot_args: list = [
+            str(cluster_tsv),
+            str(output_dir / "plots" / f"{prefix}_clusters.png"),
+            cl.get("min_cluster_size", 2),
+        ]
+        if ann.get("meta_file"):
+            plot_args += [ann["meta_file"], ann.get("id_col", ""), cl.get("color_col", "")]
+            if cl.get("size_col"):
+                plot_args.append(cl["size_col"])
+        run_r_script(scripts_dir / "plot_clusters.R", plot_args, log)
+
+    # ── Step 4: Plot SSN ──────────────────────────────────────────────────────
+    if run_all or "plot_ssn" in steps:
+        if m8_path is None:
+            m8_path = output_dir / "search" / f"{prefix}.m8"
+        log.info("=== Step 4: Plot SSN ===")
+        ann = cfg.get("annotation", {})
+        ssn = cfg.get("ssn", {})
+
+        thresholds = ssn.get("threshold", [0.3])
+        if not isinstance(thresholds, list):
+            thresholds = [thresholds]
+        color_cols = ann.get("color_col", [None])
+        if not isinstance(color_cols, list):
+            color_cols = [color_cols]
+
+        # Resolve cluster file: prefer annotation override, fall back to step 1 output
+        mmseqs_cluster = ann.get("mmseqs_cluster_file") or (str(cluster_tsv) if cluster_tsv else None)
+
+        r_cfg = {
+            "tsv_file": str(m8_path),
+            "output_file": str(output_dir / "plots" / f"{prefix}_ssn.png"),
+            "threshold": thresholds,
+            "node_size": ssn.get("node_size", 0.5),
+            "scale_node_size": ssn.get("scale_node_size", False),
+            "meta_file": ann.get("meta_file"),
+            "id_col": ann.get("id_col"),
+            "color_col": color_cols,
+            "mmseqs_cluster_file": mmseqs_cluster,
+            "id_mapping_file": ann.get("id_mapping_file"),
+        }
+        (output_dir / "plots").mkdir(parents=True, exist_ok=True)
+        r_cfg_path = output_dir / "logs" / f"{prefix}_r_config.yaml"
+        with open(r_cfg_path, "w") as fh:
+            yaml.dump(r_cfg, fh, default_flow_style=False, allow_unicode=True)
+        log.info(f"R config written to {r_cfg_path}")
+
+        run_r_script(scripts_dir / "plot_ssn.R", [str(r_cfg_path)], log)
+
+        # Python-side graph statistics per threshold
+        all_stats = []
+        for thresh in thresholds:
+            stats = compute_graph_stats(m8_path, float(thresh), log)
+            if stats:
+                log.info(f"Stats t={thresh}: {json.dumps(stats)}")
+                all_stats.append(stats)
+        if all_stats:
+            stats_path = output_dir / "logs" / f"{prefix}_graph_stats.json"
+            with open(stats_path, "w") as fh:
+                json.dump(all_stats, fh, indent=2)
+            log.info(f"Graph stats: {stats_path}")
+
+    log.info("=== Pipeline complete ===")
+
+
+if __name__ == "__main__":
+    main()
