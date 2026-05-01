@@ -1,0 +1,85 @@
+2026-05-01 14:39:54  INFO      Log: results/logs/test_run1_20260501_143954.log
+2026-05-01 14:39:54  INFO      === Config ===
+2026-05-01 14:39:54  INFO      {
+2026-05-01 14:39:54  INFO        "input_fasta": "data/GH43_characterized.fa",
+2026-05-01 14:39:54  INFO        "prefix": "test_run1",
+2026-05-01 14:39:54  INFO        "output_dir": "results",
+2026-05-01 14:39:54  INFO        "cluster": {
+2026-05-01 14:39:54  INFO          "tool": "mmseqs",
+2026-05-01 14:39:54  INFO          "min_seq_id": 0.8,
+2026-05-01 14:39:54  INFO          "coverage": 0.8,
+2026-05-01 14:39:54  INFO          "cov_mode": 0
+2026-05-01 14:39:54  INFO        },
+2026-05-01 14:39:54  INFO        "search": {
+2026-05-01 14:39:54  INFO          "tool": "mmseqs",
+2026-05-01 14:39:54  INFO          "sensitivity": 7.5,
+2026-05-01 14:39:54  INFO          "evalue": "1e-5"
+2026-05-01 14:39:54  INFO        },
+2026-05-01 14:39:54  INFO        "annotation": {
+2026-05-01 14:39:54  INFO          "meta_file": "data/GH43.tsv",
+2026-05-01 14:39:54  INFO          "id_col": "GenBank",
+2026-05-01 14:39:54  INFO          "color_col": [
+2026-05-01 14:39:54  INFO            "EC",
+2026-05-01 14:39:54  INFO            "Subf"
+2026-05-01 14:39:54  INFO          ],
+2026-05-01 14:39:54  INFO          "id_mapping_file": null,
+2026-05-01 14:39:54  INFO          "mmseqs_cluster_file": null
+2026-05-01 14:39:54  INFO        },
+2026-05-01 14:39:54  INFO        "ssn": {
+2026-05-01 14:39:54  INFO          "threshold": [
+2026-05-01 14:39:54  INFO            0.3,
+2026-05-01 14:39:54  INFO            0.5,
+2026-05-01 14:39:54  INFO            0.7
+2026-05-01 14:39:54  INFO          ],
+2026-05-01 14:39:54  INFO          "node_size": 0.5,
+2026-05-01 14:39:54  INFO          "scale_node_size": false
+2026-05-01 14:39:54  INFO        },
+2026-05-01 14:39:54  INFO        "clusters": {
+2026-05-01 14:39:54  INFO          "min_cluster_size": 2,
+2026-05-01 14:39:54  INFO          "color_col": "EC",
+2026-05-01 14:39:54  INFO          "size_col": null
+2026-05-01 14:39:54  INFO        }
+2026-05-01 14:39:54  INFO      }
+2026-05-01 14:39:54  INFO      ==============
+2026-05-01 14:39:54  INFO      === Step 3: Plot SSN ===
+2026-05-01 14:39:54  INFO      Config written to results/logs/test_run1_r_config.yaml
+2026-05-01 14:39:54  INFO      CMD  python /Users/maartenboneschansker/Documents/bunch_of_code/SSN_v2/scripts/plot_ssn.py results/logs/test_run1_r_config.yaml
+2026-05-01 14:39:57  INFO      PY   Loaded config from results/logs/test_run1_r_config.yaml
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   Thresholds: 0.3, 0.5, 0.7
+2026-05-01 14:39:57  INFO      PY   Color columns: None
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   Loaded 22407 rows from results/search/test_run1.m8
+2026-05-01 14:39:57  INFO      PY   After removing self-hits: 22175 rows
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   --- Threshold: 0.3 ---
+2026-05-01 14:39:57  INFO      PY   Edges after threshold filter: 6469
+2026-05-01 14:39:57  INFO      PY   Nodes: 232 | Edges: 6469
+2026-05-01 14:39:57  INFO      PY   Components: 1 | Largest: 232
+2026-05-01 14:39:57  INFO      PY    Color column: None
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.3_None.html
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.3_None.png
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   --- Threshold: 0.5 ---
+2026-05-01 14:39:57  INFO      PY   Edges after threshold filter: 1078
+2026-05-01 14:39:57  INFO      PY   Nodes: 173 | Edges: 1078
+2026-05-01 14:39:57  INFO      PY   Components: 39 | Largest: 37
+2026-05-01 14:39:57  INFO      PY    Color column: None
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.5_None.html
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.5_None.png
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   --- Threshold: 0.7 ---
+2026-05-01 14:39:57  INFO      PY   Edges after threshold filter: 121
+2026-05-01 14:39:57  INFO      PY   Nodes: 59 | Edges: 121
+2026-05-01 14:39:57  INFO      PY   Components: 21 | Largest: 7
+2026-05-01 14:39:57  INFO      PY    Color column: None
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.7_None.html
+2026-05-01 14:39:57  INFO      PY     Saved: results/plots/test_run1_ssn.png_t0.7_None.png
+2026-05-01 14:39:57  INFO      PY   
+2026-05-01 14:39:57  INFO      PY   Stats written to results/plots/test_run1_ssn.png_stats.json
+2026-05-01 14:39:57  INFO           done in 2.4s
+2026-05-01 14:39:57  INFO      Stats t=0.3: {"threshold": 0.3, "nodes": 232, "edges": 22175, "components": 1, "largest_component": 232, "singletons": 0, "avg_degree": 191.164, "avg_pident": 29.459}
+2026-05-01 14:39:57  INFO      Stats t=0.5: {"threshold": 0.5, "nodes": 232, "edges": 22175, "components": 1, "largest_component": 232, "singletons": 0, "avg_degree": 191.164, "avg_pident": 29.459}
+2026-05-01 14:39:57  INFO      Stats t=0.7: {"threshold": 0.7, "nodes": 232, "edges": 22175, "components": 1, "largest_component": 232, "singletons": 0, "avg_degree": 191.164, "avg_pident": 29.459}
+2026-05-01 14:39:57  INFO      Graph stats: results/logs/test_run1_graph_stats.json
+2026-05-01 14:39:57  INFO      === Pipeline complete ===

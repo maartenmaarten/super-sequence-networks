@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-SSN v2 — pipeline wrapper.
-Usage: python run_ssn.py [--config config.yaml] [--steps all|cluster|search|plot_clusters|plot_ssn]
+SSN v2 — pipeline wrapper (Python only).
+Usage: python run_ssn.py [--config config.yaml] [--steps all|cluster|search|plot_ssn]
 
 Steps:
-  cluster        mmseqs/foldseek easy-cluster  → cluster TSV + rep FASTA
-  search         mmseqs/foldseek all-vs-all    → m8 edge list
-  plot_clusters  R: cluster network + stats
-  plot_ssn       R: SSN network + stats
-  all            run all four steps in order (default)
+  cluster   mmseqs/foldseek easy-cluster  → cluster TSV + rep FASTA
+  search    mmseqs/foldseek all-vs-all    → m8 edge list
+  plot_ssn  Python: SSN network + stats (Plotly interactive HTML + PNG)
+  all       run all three steps in order (default)
 """
 
 import argparse
@@ -53,20 +52,20 @@ def log_config(cfg: dict, log: logging.Logger) -> None:
     log.info("==============")
 
 
-# ── R script runner ───────────────────────────────────────────────────────────
+# ── Graph plotting runner ────────────────────────────────────────────────────
 
-def run_r_script(script: Path, script_args: list, log: logging.Logger) -> None:
-    cmd = ["Rscript", str(script)] + [str(a) for a in script_args]
+def run_python_script(script: Path, script_args: list, log: logging.Logger) -> None:
+    cmd = ["python", str(script)] + [str(a) for a in script_args]
     log.info("CMD  " + " ".join(cmd))
     t0 = time.time()
     result = subprocess.run(cmd, capture_output=True, text=True)
     elapsed = time.time() - t0
     for line in result.stdout.splitlines():
-        log.info("R    " + line)
+        log.info("PY   " + line)
     if result.returncode != 0:
         for line in result.stderr.splitlines():
-            log.error("R    " + line)
-        raise RuntimeError(f"Rscript exited with code {result.returncode}")
+            log.error("PY   " + line)
+        raise RuntimeError(f"Python script exited with code {result.returncode}")
     log.info(f"     done in {elapsed:.1f}s")
 
 
@@ -118,7 +117,7 @@ def main():
     parser.add_argument(
         "--steps",
         nargs="+",
-        choices=["cluster", "search", "plot_clusters", "plot_ssn", "all"],
+        choices=["cluster", "search", "plot_ssn", "all"],
         default=["all"],
     )
     args = parser.parse_args()
@@ -185,30 +184,11 @@ def main():
         m8_path = result["m8"]
         log.info(f"m8: {m8_path}")
 
-    # ── Step 3: Plot clusters ─────────────────────────────────────────────────
-    if run_all or "plot_clusters" in steps:
-        if cluster_tsv is None:
-            cluster_tsv = output_dir / "cluster" / f"{prefix}_cluster.tsv"
-        log.info("=== Step 3: Plot clusters ===")
-        cl = cfg.get("clusters", {})
-        ann = cfg.get("annotation", {})
-        (output_dir / "plots").mkdir(parents=True, exist_ok=True)
-        plot_args: list = [
-            str(cluster_tsv),
-            str(output_dir / "plots" / f"{prefix}_clusters.png"),
-            cl.get("min_cluster_size", 2),
-        ]
-        if ann.get("meta_file"):
-            plot_args += [ann["meta_file"], ann.get("id_col", ""), cl.get("color_col", "")]
-            if cl.get("size_col"):
-                plot_args.append(cl["size_col"])
-        run_r_script(scripts_dir / "plot_clusters.R", plot_args, log)
-
-    # ── Step 4: Plot SSN ──────────────────────────────────────────────────────
+    # ── Step 3: Plot SSN ──────────────────────────────────────────────────────
     if run_all or "plot_ssn" in steps:
         if m8_path is None:
             m8_path = output_dir / "search" / f"{prefix}.m8"
-        log.info("=== Step 4: Plot SSN ===")
+        log.info("=== Step 3: Plot SSN ===")
         ann = cfg.get("annotation", {})
         ssn = cfg.get("ssn", {})
 
@@ -238,9 +218,9 @@ def main():
         r_cfg_path = output_dir / "logs" / f"{prefix}_r_config.yaml"
         with open(r_cfg_path, "w") as fh:
             yaml.dump(r_cfg, fh, default_flow_style=False, allow_unicode=True)
-        log.info(f"R config written to {r_cfg_path}")
+        log.info(f"Config written to {r_cfg_path}")
 
-        run_r_script(scripts_dir / "plot_ssn.R", [str(r_cfg_path)], log)
+        run_python_script(scripts_dir / "plot_ssn.py", [str(r_cfg_path)], log)
 
         # Python-side graph statistics per threshold
         all_stats = []

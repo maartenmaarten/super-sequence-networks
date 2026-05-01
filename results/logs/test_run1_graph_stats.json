@@ -1,0 +1,32 @@
+[
+  {
+    "threshold": 0.3,
+    "nodes": 232,
+    "edges": 22175,
+    "components": 1,
+    "largest_component": 232,
+    "singletons": 0,
+    "avg_degree": 191.164,
+    "avg_pident": 29.459
+  },
+  {
+    "threshold": 0.5,
+    "nodes": 232,
+    "edges": 22175,
+    "components": 1,
+    "largest_component": 232,
+    "singletons": 0,
+    "avg_degree": 191.164,
+    "avg_pident": 29.459
+  },
+  {
+    "threshold": 0.7,
+    "nodes": 232,
+    "edges": 22175,
+    "components": 1,
+    "largest_component": 232,
+    "singletons": 0,
+    "avg_degree": 191.164,
+    "avg_pident": 29.459
+  }
+]
