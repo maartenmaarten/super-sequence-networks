@@ -148,9 +148,12 @@ def main():
     m8_path: Path | None = None
 
     # ── Step 1: Cluster ───────────────────────────────────────────────────────
-    if run_all or "cluster" in steps:
+    c = cfg.get("cluster", {})
+    if c.get("skip"):
+        rep_fasta = input_fasta
+        log.info("=== Step 1: Skipped (using full input FASTA for search) ===")
+    elif run_all or "cluster" in steps:
         log.info("=== Step 1: Redundancy reduction ===")
-        c = cfg.get("cluster", {})
         result = easy_cluster(
             fasta=input_fasta,
             output_dir=output_dir / "cluster",
@@ -167,11 +170,14 @@ def main():
         log.info(f"rep_seq_fasta: {rep_fasta}")
 
     # ── Step 2: All-vs-all search ─────────────────────────────────────────────
-    if run_all or "search" in steps:
+    s = cfg.get("search", {})
+    if s.get("results_file"):
+        m8_path = Path(s["results_file"])
+        log.info(f"=== Step 2: Skipped (using existing m8: {m8_path}) ===")
+    elif run_all or "search" in steps:
         if rep_fasta is None:
             rep_fasta = output_dir / "cluster" / f"{prefix}_rep_seq.fasta"
         log.info("=== Step 2: All-vs-all search ===")
-        s = cfg.get("search", {})
         result = all_vs_all(
             fasta=rep_fasta,
             output_dir=output_dir / "search",
@@ -204,15 +210,22 @@ def main():
 
         r_cfg = {
             "tsv_file": str(m8_path),
-            "output_file": str(output_dir / "plots" / f"{prefix}_ssn.png"),
+            "output_dir": str(output_dir),
+            "prefix": prefix,
             "threshold": thresholds,
             "node_size": ssn.get("node_size", 0.5),
+            "layout": ssn.get("layout", "component_grid"),
+            "exclude_singletons": ssn.get("exclude_singletons", True),
+            "keep_all_nodes": ssn.get("keep_all_nodes", False),
             "scale_node_size": ssn.get("scale_node_size", False),
             "meta_file": ann.get("meta_file"),
             "id_col": ann.get("id_col"),
             "color_col": color_cols,
             "mmseqs_cluster_file": mmseqs_cluster,
             "id_mapping_file": ann.get("id_mapping_file"),
+            "annotation": {
+                "exclude": ann.get("exclude"),
+            },
         }
         (output_dir / "plots").mkdir(parents=True, exist_ok=True)
         r_cfg_path = output_dir / "logs" / f"{prefix}_r_config.yaml"
