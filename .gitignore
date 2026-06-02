@@ -1,5 +1,4 @@
 # Jupyter Notebooks
-*.ipynb
 .ipynb_checkpoints/
 
 # results
