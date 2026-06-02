@@ -21,7 +21,8 @@ from pathlib import Path
 
 import yaml
 
-from scripts.cluster import easy_cluster, all_vs_all
+from mmseqs   import easy_cluster as mmseqs_cluster, easy_search as mmseqs_search
+from foldseek import easy_cluster as foldseek_cluster, easy_search as foldseek_search
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -154,11 +155,12 @@ def main():
         log.info("=== Step 1: Skipped (using full input FASTA for search) ===")
     elif run_all or "cluster" in steps:
         log.info("=== Step 1: Redundancy reduction ===")
-        result = easy_cluster(
-            fasta=input_fasta,
+        tool = c.get("tool", "mmseqs")
+        _cluster = mmseqs_cluster if tool == "mmseqs" else foldseek_cluster
+        result = _cluster(
+            input_fasta,
             output_dir=output_dir / "cluster",
             prefix=prefix,
-            tool=c.get("tool", "mmseqs"),
             min_seq_id=c.get("min_seq_id", 0.8),
             coverage=c.get("coverage", 0.8),
             cov_mode=c.get("cov_mode", 0),
@@ -178,15 +180,23 @@ def main():
         if rep_fasta is None:
             rep_fasta = output_dir / "cluster" / f"{prefix}_rep_seq.fasta"
         log.info("=== Step 2: All-vs-all search ===")
-        result = all_vs_all(
-            fasta=rep_fasta,
-            output_dir=output_dir / "search",
-            prefix=prefix,
-            tool=s.get("tool", "mmseqs"),
-            evalue=s.get("evalue", 1e-5),
-            sensitivity=s.get("sensitivity", 7.5),
-            log=log,
-        )
+        tool = s.get("tool", "mmseqs")
+        if tool == "mmseqs":
+            result = mmseqs_search(
+                rep_fasta,
+                output_dir=output_dir / "search",
+                prefix=prefix,
+                evalue=s.get("evalue", 1e-5),
+                sensitivity=s.get("sensitivity", 7.5),
+                log=log,
+            )
+        else:
+            result = foldseek_search(
+                rep_fasta,
+                output_dir=output_dir / "search",
+                prefix=prefix,
+                log=log,
+            )
         m8_path = result["m8"]
         log.info(f"m8: {m8_path}")
 
