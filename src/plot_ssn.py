@@ -78,10 +78,21 @@ def build_color_lookup(meta, id_col, color_col, clusters=None, pazy_ids=None, id
 
     # Extend with UniProt keys when GenBank→UniProt mapping is supplied
     if id_map is not None and len(id_map) > 0:
+        matched = 0
+        no_genbank = 0
         for _, row in id_map.iterrows():
-            if str(row["genbank"]) in lookup:
-                lookup[str(row["uniprot"])] = lookup[str(row["genbank"])]
-        logger.info(f"Extended lookup with {len(id_map)} UniProt keys")
+            gb = str(row["genbank"])
+            up = str(row["uniprot"])
+            if gb in lookup:
+                lookup[up] = lookup[gb]
+                matched += 1
+            else:
+                no_genbank += 1
+        logger.info(
+            f"GenBank→UniProt mapping: {len(id_map)} pairs in map, "
+            f"{matched} GenBank IDs found in metadata → {matched} UniProt entries added, "
+            f"{no_genbank} GenBank IDs had no metadata annotation"
+        )
 
     # Propagate annotations to cluster representatives via majority vote
     if clusters is not None and len(clusters) > 0:
