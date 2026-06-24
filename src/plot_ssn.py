@@ -57,7 +57,7 @@ def normalize_ids(ids):
         if "|" in idx:
             parts = idx.split("|")
             if len(parts) >= 2:
-                idx = parts[1]
+                idx = parts[0]
         # plain integer  →  integer.0 (PAZy stores IDs as floats)
         if idx.isdigit():
             idx = f"{idx}.0"
@@ -422,7 +422,8 @@ def get_layout(g, layout_method="component_grid"):
 
 
 def plot_ssn(g, output_file, color_col, thresh, tsv_file,
-             color_lookup=None, node_size=5, layout_coords=None, metadata=None, id_col=None):
+             color_lookup=None, node_size=5, layout_coords=None, metadata=None, id_col=None,
+             highlight_ids=None):
     """
     Create an interactive Plotly network visualization.
     Displays all metadata columns in hover text, colors nodes by color_col only.
@@ -588,9 +589,32 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
                     showlegend=True,
                 ))
 
+    # Highlight overlay: red open circles on top of specified nodes
+    highlight_trace = None
+    if highlight_ids:
+        highlight_set = set(highlight_ids)
+        hi_idx = [i for i, name in enumerate(node_names) if name in highlight_set]
+        if hi_idx:
+            highlight_trace = go.Scatter(
+                x=[xs[i] for i in hi_idx],
+                y=[ys[i] for i in hi_idx],
+                mode="markers",
+                name="Highlighted",
+                marker=dict(
+                    symbol="circle-open",
+                    size=marker_size * 1.8,
+                    color="red",
+                    line=dict(color="red", width=2.5),
+                ),
+                text=[node_names[i] for i in hi_idx],
+                hovertemplate="%{text}<extra>highlighted</extra>",
+                showlegend=True,
+            )
+
     # Create figure
     with timed_step(f"assemble figure for {color_col}"):
-        fig = go.Figure(data=[edge_trace] + node_traces)
+        extra = [highlight_trace] if highlight_trace is not None else []
+        fig = go.Figure(data=[edge_trace] + node_traces + extra)
 
         fig.update_layout(
             title={

@@ -2,12 +2,17 @@
 """
 SSN v2 — pipeline wrapper (Python only).
 Usage: python run_ssn.py [--config config.yaml] [--steps all|cluster|search|plot_ssn]
+       python run_ssn.py --config config.yaml --fasta a.fasta b.fasta c.fasta
 
 Steps:
   cluster   mmseqs/foldseek easy-cluster  → cluster TSV + rep FASTA
   search    mmseqs/foldseek all-vs-all    → m8 edge list
   plot_ssn  Python: SSN network + stats (Plotly interactive HTML + PNG)
   all       run all three steps in order (default)
+
+Pass one or more --fasta paths to override the config input_fasta and run
+the full pipeline for each file. Each run gets its own output sub-directory
+named after the FASTA stem.
 """
 
 import argparse
@@ -121,6 +126,12 @@ def main():
         choices=["cluster", "search", "plot_ssn", "all"],
         default=["all"],
     )
+    parser.add_argument(
+        "--fasta", nargs="+",
+        help="One or more input FASTA files (overrides config input_fasta). "
+             "Each file runs the full pipeline in its own output sub-directory.",
+    )
+
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -129,13 +140,30 @@ def main():
     with open(config_path) as fh:
         cfg = yaml.safe_load(fh)
 
-    run_all = "all" in args.steps
-    steps = set(args.steps)
+    if args.fasta:
+        fastas = [Path(f) for f in args.fasta]
+        missing = [f for f in fastas if not f.exists()]
+        if missing:
+            sys.exit(f"FASTA file(s) not found: {', '.join(str(m) for m in missing)}")
+        for fasta_path in fastas:
+            run_pipeline(cfg, args.steps, input_fasta=fasta_path, prefix=fasta_path.stem)
+    else:
+        run_pipeline(cfg, args.steps)
 
-    input_fasta = Path(cfg["input_fasta"])
-    prefix = cfg["prefix"]
-    output_dir = Path(cfg["output_dir"])
-    scripts_dir = Path(__file__).parent / "scripts"
+
+def run_pipeline(cfg: dict, steps: list[str], input_fasta: Path | None = None,
+                 prefix: str | None = None) -> None:
+    run_all = "all" in steps
+    step_set = set(steps)
+
+    if input_fasta is None:
+        input_fasta = Path(cfg["input_fasta"])
+    if prefix is None:
+        prefix = cfg["prefix"]
+
+    base_output_dir = Path(cfg["output_dir"])
+    output_dir = base_output_dir / prefix if prefix != cfg.get("prefix") else base_output_dir
+    scripts_dir = Path(__file__).parent
 
     log = setup_logging(output_dir / "logs", prefix)
     log_config(cfg, log)
@@ -153,7 +181,7 @@ def main():
     if c.get("skip"):
         rep_fasta = input_fasta
         log.info("=== Step 1: Skipped (using full input FASTA for search) ===")
-    elif run_all or "cluster" in steps:
+    elif run_all or "cluster" in step_set:
         log.info("=== Step 1: Redundancy reduction ===")
         tool = c.get("tool", "mmseqs")
         _cluster = mmseqs_cluster if tool == "mmseqs" else foldseek_cluster
@@ -176,7 +204,7 @@ def main():
     if s.get("results_file"):
         m8_path = Path(s["results_file"])
         log.info(f"=== Step 2: Skipped (using existing m8: {m8_path}) ===")
-    elif run_all or "search" in steps:
+    elif run_all or "search" in step_set:
         if rep_fasta is None:
             rep_fasta = output_dir / "cluster" / f"{prefix}_rep_seq.fasta"
         log.info("=== Step 2: All-vs-all search ===")
@@ -201,7 +229,7 @@ def main():
         log.info(f"m8: {m8_path}")
 
     # ── Step 3: Plot SSN ──────────────────────────────────────────────────────
-    if run_all or "plot_ssn" in steps:
+    if run_all or "plot_ssn" in step_set:
         if m8_path is None:
             m8_path = output_dir / "search" / f"{prefix}.m8"
         log.info("=== Step 3: Plot SSN ===")
@@ -215,8 +243,7 @@ def main():
         if not isinstance(color_cols, list):
             color_cols = [color_cols]
 
-        # Resolve cluster file: prefer annotation override, fall back to step 1 output
-        mmseqs_cluster = ann.get("mmseqs_cluster_file") or (str(cluster_tsv) if cluster_tsv else None)
+        mmseqs_cluster_file = ann.get("mmseqs_cluster_file") or (str(cluster_tsv) if cluster_tsv else None)
 
         r_cfg = {
             "tsv_file": str(m8_path),
@@ -231,7 +258,7 @@ def main():
             "meta_file": ann.get("meta_file"),
             "id_col": ann.get("id_col"),
             "color_col": color_cols,
-            "mmseqs_cluster_file": mmseqs_cluster,
+            "mmseqs_cluster_file": mmseqs_cluster_file,
             "id_mapping_file": ann.get("id_mapping_file"),
             "annotation": {
                 "exclude": ann.get("exclude"),
@@ -245,7 +272,6 @@ def main():
 
         run_python_script(scripts_dir / "plot_ssn.py", [str(r_cfg_path)], log)
 
-        # Python-side graph statistics per threshold
         all_stats = []
         for thresh in thresholds:
             stats = compute_graph_stats(m8_path, float(thresh), log)
