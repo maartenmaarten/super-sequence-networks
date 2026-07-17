@@ -80,6 +80,15 @@ python src/run_ssn.py --config config.yaml --steps all
 | `ssn`        | `layout`             | Graph layout: `component_grid`, `fr`, `lgl`, `kk` |
 | `ssn`        | `exclude_singletons` | Drop isolated nodes from plots                    |
 | `ssn`        | `keep_all_nodes`     | Include nodes with no above-threshold edges       |
+| `graph_metrics` | `enabled`         | Turn on igraph analysis metrics (off by default)  |
+| `graph_metrics` | `preset`          | `fast` \| `standard` \| `full` \| `custom`        |
+| `graph_metrics` | `global`/`vertex`/`edge` | Per-category toggles (diameter, centrality, cliques, ...) |
+| `graph_metrics` | `output.color_with` | Metric name(s) to add as extra color-by plots (e.g. `betweenness`) |
+| `graph_metrics` | `components.enabled` | Per-connected-component stats table (`_component_metrics.tsv`) |
+
+See the `graph_metrics:` section in `config.yaml` for the full set of options — it
+writes `{prefix}_t{threshold}_graph_metrics.json` and `_vertex_metrics.tsv` per
+threshold, and merges scalar metrics into the existing `{prefix}_stats.json`.
 
 ---
 
@@ -90,6 +99,7 @@ python src/run_ssn.py --config config.yaml --steps all
 | `src/run_ssn.py`  | Pipeline orchestrator (cluster → search → plot)     |
 | `src/plot_ssn.py` | SSN graph building and Plotly visualisation         |
 | `src/plot_mst.py` | Minimum Spanning Tree variant of the network        |
+| `src/graph_metrics.py` | Optional igraph analysis metrics (global/vertex/edge), called from `plot_ssn.py` |
 | `src/mmseqs.py`   | Thin wrappers around `mmseqs easy-cluster/search`   |
 | `src/foldseek.py` | Thin wrappers around `foldseek easy-cluster/search` |
 

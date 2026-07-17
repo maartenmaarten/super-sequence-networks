@@ -91,6 +91,62 @@ ssn:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# GRAPH ANALYSIS METRICS (Optional)
+# ══════════════════════════════════════════════════════════════════════════════
+
+graph_metrics:
+  enabled: false                           # Master switch — off by default
+  preset: standard                         # fast | standard | full | custom
+                                           #   fast:     basic + density/transitivity + boolean checks
+                                           #   standard: + distributions, connectedness, modularity,
+                                           #             per-vertex centrality (betweenness, pagerank, ...)
+                                           #   full:     + cliques, motifs, independent sets, separators,
+                                           #             edge metrics (guarded, can be slow on dense graphs)
+                                           #   custom:   nothing on by default; set flags below explicitly
+
+  guards:                                  # Hard caps enforced regardless of preset
+    max_nodes_mincut: 5000                 # Skip mincut() above this node count
+    max_nodes_cliques: 500                 # Per-component cap for cliques/motifs/
+                                           # independent-sets/separators (combinatorial)
+    max_cliques_returned: 100000           # Cap on maximal_cliques() enumeration size
+
+  global:                                  # Category toggles (override preset per-key)
+    basic: true                            # diameter, radius, average_path_length, girth
+    distributions: true                    # degree_distribution, path_length_hist
+    connectedness: true                    # articulation_points, biconnected_components
+    cliques_motifs: false                  # clique_number, (maximal/largest) cliques, motifs
+    separators: false                      # all_minimal_st_separators, minimum_size_separators
+    optimality: true                       # farthest_points, mincut, modularity (via Louvain)
+    independence_sets: false                # independence_number, (maximal/largest) independent sets
+    other_measures: true                   # assortativity_degree, density, transitivity
+    boolean_props: true                    # is_bipartite, is_connected, is_simple, has_multiple, ...
+
+  vertex:
+    enabled: true
+    structural: true                       # betweenness, closeness, pagerank, coreness,
+                                           # eigenvector/harmonic centrality, coreness, etc.
+    personalized_pagerank:
+      enabled: false
+      reset_col: null                      # metadata column of seed-vertex flags (optional)
+
+  edge:
+    enabled: false                         # is_loop, is_multiple, count_multiple, edge_betweenness
+
+  components:
+    enabled: true                          # one row per connected component (diameter, density,
+                                           # clique_number, modularity, ...) — reuses the `global`
+                                           # toggles/guards above, scoped to each component
+
+  output:
+    write_vertex_table: true               # write {prefix}_t{thresh}_vertex_metrics.tsv
+                                           # (includes component_id/community_id columns)
+    write_edge_table: false                # write {prefix}_t{thresh}_edge_metrics.tsv
+    write_component_table: true            # write {prefix}_t{thresh}_component_metrics.tsv
+    color_with: []                         # metric name(s) to add as extra color_col plots,
+                                           # e.g. ["betweenness", "pagerank", "community_id"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # CLUSTERING FOR VISUALIZATION (Optional)
 # ══════════════════════════════════════════════════════════════════════════════
 

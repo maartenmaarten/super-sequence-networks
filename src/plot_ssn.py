@@ -25,6 +25,8 @@ import igraph as ig
 import plotly.graph_objects as go
 import plotly.express as px
 
+import graph_metrics
+
 # Try to import kaleido for PNG export
 try:
     import kaleido
@@ -34,6 +36,10 @@ except ImportError:
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Plotly's HTML/PNG network trace becomes impractically slow/large well before
+# this many vertices; skip rendering and rely on the stats/metrics files instead.
+MAX_VERTICES_FOR_PLOT = 1000
 
 
 @contextmanager
@@ -355,14 +361,8 @@ def get_component_grid_layout(g):
         subgraph = g.induced_subgraph(component)
         if subgraph.vcount() == 1:
             local_coords = [(0.0, 0.0)]
-        elif subgraph.vcount() <= 30:
-            local_layout = subgraph.layout("circle")
-            local_coords = [(point[0], point[1]) for point in local_layout]
         else:
-            try:
-                local_layout = subgraph.layout("lgl")
-            except Exception:
-                local_layout = subgraph.layout("fr")
+            local_layout = subgraph.layout("kk") # 'kk' also works really well
             local_coords = [(point[0], point[1]) for point in local_layout]
 
         local_x = [point[0] for point in local_coords]
@@ -516,6 +516,24 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
             known_idx   = [i for i, v in enumerate(float_colors) if not math.isnan(v)]
             unknown_idx = [i for i, v in enumerate(float_colors) if math.isnan(v)]
 
+            # "Unknown" is added first so it sits behind labelled/colored nodes
+            # (Plotly draws traces in list order, later traces on top).
+            if unknown_idx:
+                node_traces.append(go.Scatter(
+                    x=[xs[i] for i in unknown_idx],
+                    y=[ys[i] for i in unknown_idx],
+                    mode="markers",
+                    name="Unknown",
+                    marker=dict(
+                        size=marker_size,
+                        color="rgb(128, 128, 128)",
+                        line=dict(width=0.4, color="white"),
+                        opacity=0.5,
+                    ),
+                    text=[_hover(i) for i in unknown_idx],
+                    hovertemplate="%{text}<extra></extra>",
+                    showlegend=True,
+                ))
             if known_idx:
                 node_traces.append(go.Scatter(
                     x=[xs[i] for i in known_idx],
@@ -535,22 +553,6 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
                     hovertemplate="%{text}<extra></extra>",
                     showlegend=False,
                 ))
-            if unknown_idx:
-                node_traces.append(go.Scatter(
-                    x=[xs[i] for i in unknown_idx],
-                    y=[ys[i] for i in unknown_idx],
-                    mode="markers",
-                    name="Unknown",
-                    marker=dict(
-                        size=marker_size,
-                        color="rgb(128, 128, 128)",
-                        line=dict(width=0.4, color="white"),
-                        opacity=0.9,
-                    ),
-                    text=[_hover(i) for i in unknown_idx],
-                    hovertemplate="%{text}<extra></extra>",
-                    showlegend=True,
-                ))
 
         else:
             color_scheme = (
@@ -559,10 +561,11 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
                 + px.colors.qualitative.Dark24
             )
             sentinels = {"Unknown", "All sequences"}
-            unique_colors = sorted(c for c in set(node_colors) if c not in sentinels)
-            for special in ("All sequences", "Unknown"):
-                if special in node_colors:
-                    unique_colors.append(special)
+            # Sentinels first so they sit behind labelled/colored nodes
+            # (Plotly draws traces in list order, later traces on top).
+            sentinel_colors = [s for s in ("Unknown", "All sequences") if s in set(node_colors)]
+            annotated_colors = sorted(c for c in set(node_colors) if c not in sentinels)
+            unique_colors = sentinel_colors + annotated_colors
 
             color_map = {
                 c: color_scheme[i % len(color_scheme)]
@@ -573,6 +576,8 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
 
             for color_value in unique_colors:
                 indices = [i for i, v in enumerate(node_colors) if v == color_value]
+                # Unlabelled ("Unknown") nodes fade into the background.
+                opacity = 0.5 if color_value == "Unknown" else 0.9
                 node_traces.append(go.Scatter(
                     x=[xs[i] for i in indices],
                     y=[ys[i] for i in indices],
@@ -582,7 +587,7 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
                         size=marker_size,
                         color=color_map.get(color_value, "grey"),
                         line=dict(width=0.4, color="white"),
-                        opacity=0.9,
+                        opacity=opacity,
                     ),
                     text=[_hover(i) for i in indices],
                     hovertemplate="%{text}<extra></extra>",
@@ -632,13 +637,19 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
             height=1000
         )
 
-    # Save HTML (interactive)
+    # Save HTML (interactive) — skipped above MAX_VERTICES_FOR_PLOT since the
+    # interactive trace becomes impractically large/slow; PNG export still runs.
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-    with timed_step(f"write HTML {output_file}"):
-        fig.write_html(output_file)
-    logger.info(f"Saved: {output_file}")
-    print(f"  Saved: {output_file}")
-    
+    if g.vcount() > MAX_VERTICES_FOR_PLOT:
+        logger.info(f"Skipping HTML for {color_col}: {g.vcount()} vertices > {MAX_VERTICES_FOR_PLOT}")
+        print(f"  Skipping HTML (color={color_col}): {g.vcount()} vertices > {MAX_VERTICES_FOR_PLOT}")
+    else:
+        with timed_step(f"write HTML {output_file}"):
+            fig.write_html(output_file)
+        logger.info(f"Saved: {output_file}")
+        print(f"  Saved: {output_file}")
+
+
     # Save PNG (static) if kaleido available
     if HAS_KALEIDO:
         png_file = str(output_file).replace(".html", ".png")
@@ -909,11 +920,37 @@ def main():
         # Collect stats
         with timed_step(f"compute graph stats for threshold {thresh}"):
             st = graph_stats(g, thresh, metadata=meta, id_col=id_col)
+
+        # Optional graph analysis metrics (diameter, centrality, cliques, etc.)
+        metrics_cfg = cfg.get("graph_metrics", {})
+        vertex_metrics = {}
+        if metrics_cfg.get("enabled", False):
+            with timed_step(f"compute graph metrics for threshold {thresh}"):
+                try:
+                    metrics_result = graph_metrics.compute_graph_metrics(
+                        g, thresh, output_base, metrics_cfg,
+                        metadata=meta, id_col=id_col, logger=logger
+                    )
+                    st.update(metrics_result.get("global_flat", {}))
+                    vertex_metrics = metrics_result.get("vertex_metrics", {})
+                except Exception as e:
+                    logger.warning(f"graph_metrics failed for threshold {thresh}: {e}")
+
         all_stats.append(st)
         logger.info(f"Stats: {st}")
 
+        # Metric-derived color columns (e.g. betweenness, pagerank, community_id)
+        metric_color_cols = metrics_cfg.get("output", {}).get("color_with", [])
+        extra_cols = []
+        for m in metric_color_cols:
+            if m in vertex_metrics:
+                color_lookups[m] = vertex_metrics[m]
+                extra_cols.append(m)
+            else:
+                logger.warning(f"color_with metric '{m}' was not computed; skipping as color column")
+
         # Plot for each color column
-        for col in color_cols:
+        for col in color_cols + extra_cols:
             logger.info(f"Color column: {col}")
 
             color_lookup = color_lookups.get(col)
