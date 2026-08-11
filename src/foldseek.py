@@ -71,12 +71,17 @@ def easy_search(
     pdb_dir: Path,
     output_dir: Path,
     prefix: str,
+    coverage: float = 0.8,
+    cov_mode: int = 0,
     alignment_type: int = 2,
     log: logging.Logger = _log,
 ) -> dict:
     """
     All-vs-all structure similarity search with foldseek easy-search.
 
+    min_tmscore:    TM-score threshold for search results (0–1)
+    coverage:       coverage threshold
+    cov_mode:       0 = bidirectional, 1 = query, 2 = target
     alignment_type: 0 = 3Di, 1 = TM-align, 2 = 3Di+AA (default)
 
     Returns:
@@ -91,6 +96,8 @@ def easy_search(
         "foldseek", "easy-search",
         pdb_dir, pdb_dir, m8_path, output_dir / "tmp",
         "--format-output",  _FMT,
+        "--cov-mode",        cov_mode,
+        "-c",                coverage,
         "--alignment-type", alignment_type,
     ], log)
 
