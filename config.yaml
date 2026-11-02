@@ -13,10 +13,10 @@
 # INPUT DATA
 # ══════════════════════════════════════════════════════════════════════════════
 
-input_fasta: "/path/to/input.fa"   # Path to FASTA file for analysis
+input_fasta: "data/GH43_characerized.fa"   # Path to FASTA file for analysis
                                            # For foldseek: path to PDB/mmCIF directory
-prefix: "ibaj_ssn"                        # Prefix for all output files
-output_dir: "/path/to/output/"                      # Directory for all outputs
+prefix: "full_ssn"                        # Prefix for all output files
+output_dir: "results/GH43_characterized/"                      # Directory for all outputs
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -24,12 +24,12 @@ output_dir: "/path/to/output/"                      # Directory for all outputs
 # ══════════════════════
 
 cluster:
-  skip: true                              # Set to true to skip redundancy reduction entirely
+  skip: false                              # Set to true to skip redundancy reduction entirely
                                            # All-vs-all search will run on the full input FASTA
   tool: mmseqs                             # mmseqs | foldseek
-  min_seq_id: 0.9                 # Minimum sequence identity (0.0-1.0)
-  coverage: 0.9              # Minimum coverage (0.0-1.0)
-  cov_mode: 0                              # Coverage mode:
+  min_seq_id: 0.4                 # Minimum sequence identity (0.0-1.0)
+  coverage: 0.4              # Minimum coverage (0.0-1.0)
+  cov_mode: 1                              # Coverage mode:
                                            #   0 = bidirectional coverage
                                            #   1 = query coverage
                                            #   2 = target coverage
@@ -55,10 +55,10 @@ search:
 # ══════════════════════════════════════════════════════════════════════════════
 
 annotation:
-  meta_file: "/path/to/annotations.domtbl"              # TSV with sequence annotations
+  meta_file: "/Users/maartenboneschansker/Documents/PhD/projects/cazyme_data_collection/2026-09-24_download/consolidated/characterized_ALL.tsv"              # TSV with sequence annotations
                                            # Must have header row
                                            # First column should match sequence IDs
-  id_col: "query name"                        # Column name in meta_file that matches
+  id_col: "GenBank"                        # Column name in meta_file that matches
                                            # sequence IDs from input_fasta
   color_col:                               # One or more columns to color nodes by
     - "target name"                        # Creates one plot per color column
@@ -79,8 +79,8 @@ annotation:
 
 ssn:
   threshold:                               # Identity thresholds for separate plots
-    - 0.7                                  # 30% identity                                 # 50% identity
-    - 0.3                            # 70% identity
+    - 0.6                                  # 30% identity                                 # 50% identity
+    - 0.4                            # 70% identity
   node_size: 4                        # Node marker size (0.1-10.0)
   layout: component_grid                   # Layout: component_grid (fast), lgl, fr, drl, kk, circle, grid
   exclude_singletons: false                 # Exclude one-node connected components from plots

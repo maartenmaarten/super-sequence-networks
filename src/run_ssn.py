@@ -217,6 +217,9 @@ def run_pipeline(cfg: dict, steps: list[str], input_fasta: Path | None = None,
                 evalue=s.get("evalue", 1e-5),
                 sensitivity=s.get("sensitivity", 7.5),
                 log=log,
+                min_seq_id=s.get("min_seq_id", 0.4),
+                coverage=s.get("coverage", 0.4),
+                cov_mode=s.get("cov_mode", 1),
             )
         else:
             result = foldseek_search(

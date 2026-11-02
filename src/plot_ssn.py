@@ -41,6 +41,24 @@ logger = logging.getLogger(__name__)
 # this many vertices; skip rendering and rely on the stats/metrics files instead.
 MAX_VERTICES_FOR_PLOT = 1000
 
+# Matplotlib's tab20 (dark/light pairs); every other entry gives tab10.
+TAB20 = [
+    "#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a",
+    "#d62728", "#ff9896", "#9467bd", "#c5b0d5", "#8c564b", "#c49c94",
+    "#e377c2", "#f7b6d2", "#7f7f7f", "#c7c7c7", "#bcbd22", "#dbdb8d",
+    "#17becf", "#9edae5",
+]
+TAB10 = TAB20[::2]
+
+
+def categorical_palette(n):
+    """tab10 for <=10 labels, tab20 for <=20, otherwise an evenly sampled rainbow."""
+    if n <= 10:
+        return TAB10[:n]
+    if n <= 20:
+        return TAB20[:n]
+    return px.colors.sample_colorscale("Rainbow", [i / (n - 1) for i in range(n)])
+
 
 @contextmanager
 def timed_step(label):
@@ -555,11 +573,6 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
                 ))
 
         else:
-            color_scheme = (
-                px.colors.qualitative.Bold
-                + px.colors.qualitative.Light24
-                + px.colors.qualitative.Dark24
-            )
             sentinels = {"Unknown", "All sequences"}
             # Sentinels first so they sit behind labelled/colored nodes
             # (Plotly draws traces in list order, later traces on top).
@@ -567,10 +580,7 @@ def plot_ssn(g, output_file, color_col, thresh, tsv_file,
             annotated_colors = sorted(c for c in set(node_colors) if c not in sentinels)
             unique_colors = sentinel_colors + annotated_colors
 
-            color_map = {
-                c: color_scheme[i % len(color_scheme)]
-                for i, c in enumerate(unique_colors)
-            }
+            color_map = dict(zip(annotated_colors, categorical_palette(len(annotated_colors))))
             color_map["Unknown"] = "rgb(128, 128, 128)"
             color_map["All sequences"] = "rgb(31, 119, 180)"
 

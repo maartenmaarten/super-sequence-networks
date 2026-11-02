@@ -69,6 +69,9 @@ def easy_search(
     prefix: str,
     evalue: float = 1e-5,
     sensitivity: float = 7.5,
+    min_seq_id: float = 0.0,
+    coverage: float = 0.0,
+    cov_mode: int = 0,
     log: logging.Logger = _log,
 ) -> dict:
     """
@@ -89,6 +92,9 @@ def easy_search(
         "--format-output", _FMT,
         "-e", evalue,
         "-s", sensitivity,
+        "--min-seq-id", min_seq_id,
+        "-c", coverage,
+        "--cov-mode", cov_mode,
     ], log)
 
     return {"m8": m8_path}
